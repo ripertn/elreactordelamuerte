@@ -3,7 +3,7 @@ defmodule ElixirPlugTuto.MixProject do
 
   def project do
     [
-      app: :elixir_plug_tuto,
+      app: :elreactordelamuerte,
       version: "0.1.0",
       elixir: "~> 1.6",
       start_permanent: Mix.env() == :prod,

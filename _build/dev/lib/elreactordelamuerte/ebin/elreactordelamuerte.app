@@ -1,6 +1,6 @@
-{application,elixir_plug_tuto,
+{application,elreactordelamuerte,
              [{applications,[kernel,stdlib,elixir,logger,plug,cowboy,poison]},
-              {description,"elixir_plug_tuto"},
+              {description,"elreactordelamuerte"},
               {modules,['Elixir.ElixirPlugTuto','Elixir.PlugEx.Router',
                         'Elixir.Ticker']},
               {registered,[]},
