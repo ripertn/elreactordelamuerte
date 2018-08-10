@@ -17,17 +17,15 @@ defmodule Plug.Conn do
     * `host` - the requested host as a binary, example: `"www.example.com"`
     * `method` - the request method as a binary, example: `"GET"`
     * `path_info` - the path split into segments, example: `["hello", "world"]`
-    * `script_name` - the initial portion of the URL's path that corresponds to the application
-      routing, as segments, example: ["sub","app"].
+    * `script_name` - the initial portion of the URL's path that corresponds to
+      the application routing, as segments, example: ["sub","app"]
     * `request_path` - the requested path, example: `/trailing/and//double//slashes/`
     * `port` - the requested port as an integer, example: `80`
-    * `peer` - the actual TCP peer that connected, example: `{{127, 0, 0, 1}, 12345}`. Often this
-      is not the actual IP and port of the client, but rather of a load-balancer or request-router.
-    * `remote_ip` - the IP of the client, example: `{151, 236, 219, 228}`. This field is meant to
-      be overwritten by plugs that understand e.g. the `X-Forwarded-For` header or HAProxy's PROXY
-      protocol. It defaults to peer's IP.
+    * `remote_ip` - the IP of the client, example: `{151, 236, 219, 228}`. This field
+      is meant to be overwritten by plugs that understand e.g. the `X-Forwarded-For`
+      header or HAProxy's PROXY protocol. It defaults to peer's IP
     * `req_headers` - the request headers as a list, example: `[{"content-type", "text/plain"}]`.
-      Note all headers will be downcased.
+      Note all headers will be downcased
     * `scheme` - the request scheme as an atom, example: `:http`
     * `query_string` - the request query string as a binary, example: `"foo=bar"`
 
@@ -44,8 +42,8 @@ defmodule Plug.Conn do
     * `body_params` - the request body params, populated through a `Plug.Parsers` parser.
     * `query_params` - the request query params, populated through `fetch_query_params/2`
     * `path_params` - the request path params, populated by routers such as `Plug.Router`
-    * `params` - the request params, the result of merging the `:body_params` and `:query_params`
-       with `:path_params`
+    * `params` - the request params, the result of merging the `:body_params` and
+      `:query_params` with `:path_params`
     * `req_cookies` - the request cookies (without the response ones)
 
   ## Response fields
@@ -89,20 +87,6 @@ defmodule Plug.Conn do
 
     * `adapter` - holds the adapter information in a tuple
     * `private` - shared library data as a map
-
-  ## Protocols
-
-  `Plug.Conn` implements both the Collectable and Inspect protocols
-  out of the box. The inspect protocol provides a nice representation
-  of the connection while the collectable protocol allows developers
-  to easily chunk data. For example:
-
-      # Send the chunked response headers
-      conn = send_chunked(conn, 200)
-
-      # Pipe the given list into a connection
-      # Each item is emitted as a chunk
-      Enum.into(~w(each chunk as a word), conn)
 
   ## Custom status codes
 
@@ -173,11 +157,11 @@ defmodule Plug.Conn do
           params: params | Unfetched.t(),
           path_info: segments,
           path_params: params,
+          peer: peer,
           port: :inet.port_number(),
           private: assigns,
           query_params: params | Unfetched.t(),
           query_string: query_string,
-          peer: peer,
           remote_ip: :inet.ip_address(),
           req_cookies: cookies | Unfetched.t(),
           req_headers: headers,
@@ -204,11 +188,11 @@ defmodule Plug.Conn do
             params: %Unfetched{aspect: :params},
             path_params: %{},
             path_info: [],
+            peer: nil,
             port: 0,
             private: %{},
             query_params: %Unfetched{aspect: :query_params},
             query_string: "",
-            peer: nil,
             remote_ip: nil,
             req_cookies: %Unfetched{aspect: :cookies},
             req_headers: [],
@@ -273,7 +257,7 @@ defmodule Plug.Conn do
   @unsent [:unset, :set, :set_chunked, :set_file]
 
   @doc """
-  Assigns a value to a key in the connection
+  Assigns a value to a key in the connection.
 
   ## Examples
 
@@ -290,47 +274,38 @@ defmodule Plug.Conn do
   end
 
   @doc """
-  Starts a task to assign a value to a key in the connection.
+  Assigns multiple values to keys in the connection.
 
-  `await_assign/2` can be used to wait for the async task to complete and
-  retrieve the resulting value.
-
-  Behind the scenes, it uses `Task.async/1`.
+  Equivalent to multiple calls to `assign/3`.
 
   ## Examples
 
       iex> conn.assigns[:hello]
       nil
-      iex> conn = async_assign(conn, :hello, fn -> :world end)
-      iex> conn.assigns[:hello]
-      %Task{...}
-
-  """
-  @spec async_assign(t, atom, (() -> term)) :: t
-  def async_assign(%Conn{} = conn, key, fun) when is_atom(key) and is_function(fun, 0) do
-    assign(conn, key, Task.async(fun))
-  end
-
-  @doc """
-  Awaits the completion of an async assign.
-
-  Returns a connection with the value resulting from the async assignment placed
-  under `key` in the `:assigns` field.
-
-  Behind the scenes, it uses `Task.await/2`.
-
-  ## Examples
-
-      iex> conn.assigns[:hello]
-      nil
-      iex> conn = async_assign(conn, :hello, fn -> :world end)
-      iex> conn = await_assign(conn, :hello) # blocks until `conn.assigns[:hello]` is available
+      iex> conn = merge_assigns(conn, hello: :world)
       iex> conn.assigns[:hello]
       :world
 
   """
+  @spec merge_assigns(t, Keyword.t()) :: t
+  def merge_assigns(%Conn{assigns: assigns} = conn, keyword) when is_list(keyword) do
+    %{conn | assigns: Enum.into(keyword, assigns)}
+  end
+
+  @doc false
+  @spec async_assign(t, atom, (() -> term)) :: t
+  def async_assign(%Conn{} = conn, key, fun) when is_atom(key) and is_function(fun, 0) do
+    IO.warn("Plug.Conn.async_assign/3 is deprecated, please call assign + Task.async instead")
+    assign(conn, key, Task.async(fun))
+  end
+
+  @doc false
   @spec await_assign(t, atom, timeout) :: t
   def await_assign(%Conn{} = conn, key, timeout \\ 5000) when is_atom(key) do
+    IO.warn(
+      "Plug.Conn.await_assign/3 is deprecated, please fetch the assign and call Task.await instead"
+    )
+
     task = Map.fetch!(conn.assigns, key)
     assign(conn, key, Task.await(task, timeout))
   end
@@ -355,6 +330,24 @@ defmodule Plug.Conn do
   @spec put_private(t, atom, term) :: t
   def put_private(%Conn{private: private} = conn, key, value) when is_atom(key) do
     %{conn | private: Map.put(private, key, value)}
+  end
+
+  @doc """
+  Assigns multiple **private** keys and values in the connection.
+
+  Equivalent to multiple `put_private/3` calls.
+
+  ## Examples
+
+      iex> conn.private[:plug_hello]
+      nil
+      iex> conn = merge_private(conn, plug_hello: :world)
+      iex> conn.private[:plug_hello]
+      :world
+  """
+  @spec merge_private(t, Keyword.t()) :: t
+  def merge_private(%Conn{private: private} = conn, keyword) when is_list(keyword) do
+    %{conn | private: Enum.into(keyword, private)}
   end
 
   @doc """
@@ -550,6 +543,22 @@ defmodule Plug.Conn do
   end
 
   @doc """
+  Returns the request peer data if one is present. 
+  """
+  @spec get_peer_data(t) :: Plug.Conn.Adapter.peer_data()
+  def get_peer_data(%Conn{adapter: {adapter, payload}}) do
+    adapter.get_peer_data(payload)
+  end
+
+  @doc """
+  Returns the http protocol and version.
+  """
+  @spec get_http_protocol(t) :: Plug.Conn.Adapter.http_protocol()
+  def get_http_protocol(%Conn{adapter: {adapter, payload}}) do
+    adapter.get_http_protocol(payload)
+  end
+
+  @doc """
   Returns the values of the request header specified by `key`.
   """
   @spec get_req_header(t, binary) :: [binary]
@@ -674,7 +683,7 @@ defmodule Plug.Conn do
   Prepends the list of headers to the connection response headers.
 
   Similar to `put_resp_header` this functions adds a new response header
-  (`key`) but rather then replacing the exising one it prepends another header
+  (`key`) but rather then replacing the existing one it prepends another header
   with the same `key`.
 
   It is recommended for header keys to be in lower-case, to avoid sending
@@ -802,6 +811,9 @@ defmodule Plug.Conn do
   @doc """
   Fetches query parameters from the query string.
 
+  Params are decoded as "x-www-form-urlencoded" in which key/value pairs
+  are separated by `&` and keys are separated from values by `=`.
+
   This function does not fetch parameters from the body. To fetch
   parameters from the body, use the `Plug.Parsers` plug.
 
@@ -842,6 +854,9 @@ defmodule Plug.Conn do
   there is more data to be read, then `{:more, partial_body, conn}` is
   returned. Otherwise `{:ok, body, conn}` is returned. In case of an error
   reading the socket, `{:error, reason}` is returned as per `:gen_tcp.recv/2`.
+
+  Like all functions in this module, the `conn` returned by `read_body` must
+  be passed to the next stage of your pipeline and should not be ignored.
 
   In order to, for instance, support slower clients you can tune the
   `:read_length` and `:read_timeout` options. These specify how much time should
@@ -1036,6 +1051,59 @@ defmodule Plug.Conn do
   end
 
   @doc """
+  Sends and informational response to the client.
+
+  An informational response, such as an early hint, must happen prior to a response
+  being sent. If an informational request is attempted after a response is sent then
+  a `Plug.Conn.AlreadySentError` will be raised. Only status codes from 100-199 are valid.
+
+  To use inform for early hints send one or more informs with a status of 103.
+
+  If the adapter does not support informational responses then this is a noop.
+
+  Most HTTP/1.1 clients do not properly support informational responses but some
+  proxies require it to support server push for HTTP/2. You can call
+  `get_http_protocol/1` to retrieve the protocol and version.
+  """
+  @spec inform(t, status, Keyword.t()) :: t
+  def inform(%Conn{} = conn, status, headers \\ []) do
+    status_code = Plug.Conn.Status.code(status)
+    adapter_inform(conn, status_code, headers)
+    conn
+  end
+
+  @doc """
+  Sends an information response to a client but raises if the adapter does not support inform.
+  """
+  @spec inform!(t, status, Keyword.t()) :: t
+  def inform!(%Conn{adapter: {adapter, _}} = conn, status, headers \\ []) do
+    status_code = Plug.Conn.Status.code(status)
+
+    case adapter_inform(conn, status_code, headers) do
+      :ok ->
+        conn
+
+      _ ->
+        raise "inform is not supported by #{inspect(adapter)}." <>
+                "You should either delete the call to `inform!/3` or switch to an " <>
+                "adapter that does support informational such as Plug.Adapters.Cowboy2"
+    end
+  end
+
+  defp adapter_inform(_conn, status, _headers)
+       when not (status >= 100 and status <= 199 and is_integer(status)) do
+    raise ArgumentError, "inform expects a status code between 100 and 199, got: #{status}"
+  end
+
+  defp adapter_inform(%Conn{state: state}, _status, _headers)
+       when not (state in @unsent) do
+    raise AlreadySentError
+  end
+
+  defp adapter_inform(%Conn{adapter: {adapter, payload}}, status, headers),
+    do: adapter.inform(payload, status, headers)
+
+  @doc """
   Pushes a resource to the client.
 
   Server pushes must happen prior to a response being sent. If a server
@@ -1043,6 +1111,10 @@ defmodule Plug.Conn do
   will be raised.
 
   If the adapter does not support server push then this is a noop.
+
+  Note that certain browsers (such as Google Chrome) will not accept a pushed
+  resource if your certificate is not trusted. In the case of Chrome this means
+  a valid cert with a SAN. See https://www.chromestatus.com/feature/4981025180483584
   """
   @spec push(t, String.t(), Keyword.t()) :: t
   def push(%Conn{} = conn, path, headers \\ []) do

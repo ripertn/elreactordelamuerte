@@ -9,6 +9,7 @@ defmodule Plug.Conn.Status do
     100 => "Continue",
     101 => "Switching Protocols",
     102 => "Processing",
+    103 => "Early Hints",
     200 => "OK",
     201 => "Created",
     202 => "Accepted",
@@ -161,7 +162,7 @@ defmodule Plug.Conn.Status do
     After defining the config for custom statuses, Plug must be recompiled for
     the changes to take place using:
 
-        MIX_ENV=dev mix deps.compile plug
+        MIX_ENV=dev mix deps.clean plug --build
 
     Doing this will allow the use of the integer status code 451 as
     well as the atom :unavailable_for_legal_reasons in many Plug functions.

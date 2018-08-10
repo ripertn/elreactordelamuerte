@@ -7,9 +7,9 @@
                         'Elixir.Plug.Adapters.Cowboy.Conn',
                         'Elixir.Plug.Adapters.Cowboy.Handler',
                         'Elixir.Plug.Adapters.Cowboy2',
-                        'Elixir.Plug.Adapters.Cowboy2.BadResponseCheck',
                         'Elixir.Plug.Adapters.Cowboy2.Conn',
                         'Elixir.Plug.Adapters.Cowboy2.Handler',
+                        'Elixir.Plug.Adapters.Cowboy2.Stream',
                         'Elixir.Plug.Adapters.Test.Conn',
                         'Elixir.Plug.Adapters.Translator',
                         'Elixir.Plug.BadRequestError','Elixir.Plug.Builder',
@@ -52,6 +52,6 @@
                         'Elixir.Plug.TimeoutError','Elixir.Plug.Upload',
                         'Elixir.Plug.UploadError',plug_multipart]},
               {registered,[]},
-              {vsn,"1.5.0"},
+              {vsn,"1.6.2"},
               {mod,{'Elixir.Plug',[]}},
               {env,[{validate_header_keys_during_test,true}]}]}.

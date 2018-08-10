@@ -58,7 +58,7 @@ defmodule Plug.Parsers do
 
   This plug will raise `Plug.Parsers.UnsupportedMediaTypeError` by default if
   the request cannot be parsed by any of the given types and the MIME type has
-  not been explicity accepted with the `:pass` option.
+  not been explicitly accepted with the `:pass` option.
 
   `Plug.Parsers.RequestTooLargeError` will be raised if the request goes over
   the given limit.
@@ -78,9 +78,9 @@ defmodule Plug.Parsers do
 
   ## Options
 
-    * `:parsers` - a list of modules to be invoked for parsing.
-      These modules need to implement the behaviour outlined in
-      this module.
+    * `:parsers` - a list of modules or atoms of built-in parsers to be
+      invoked for parsing. These modules need to implement the behaviour
+      outlined in this module.
 
     * `:pass` - an optional list of MIME type strings that are allowed
       to pass through. Any mime not handled by a parser and not explicitly
@@ -92,12 +92,18 @@ defmodule Plug.Parsers do
 
     * `:query_string_length` - the maximum allowed size for query strings
 
+    * `:body_reader` - an optional replacement (or wrapper) for
+      `Plug.Conn.read_body/2` to provide a function that gives access to the
+      raw body before it is parsed and discarded. It is in the standard format
+      of `{Module, :function, [args]}` (MFA) and defaults to
+      `{Plug.Conn, :read_body, []}`.
+
   ## Examples
 
       plug Plug.Parsers, parsers: [:urlencoded, :multipart]
 
       plug Plug.Parsers, parsers: [:urlencoded, :json],
-                         pass:  ["text/*"],
+                         pass: ["text/*"],
                          json_decoder: Jason
 
   Each parser also accepts options to be given directly to it by using tuples.
@@ -140,6 +146,30 @@ defmodule Plug.Parsers do
   variables which usually hold the value of the system's temporary directory
   (like `TMPDIR` or `TMP`). If no value is found in any of those variables,
   `/tmp` is used as a default.
+
+  ## Custom body reader
+
+  Sometimes you may want to customize how a parser reads the body from the
+  connection. For example, you may want to cache the body to perform verification
+  later, such as HTTP Signature Verification. This can be achieved with a custom
+  body reader that would read the body and store it in the connection, such as:
+
+      defmodule CacheBodyReader do
+        def read_body(conn, opts) do
+          {:ok, body, conn} = Plug.Conn.read_body(conn, opts)
+          conn = update_in(conn.assigns[:raw_body], &[body | (&1 || [])])
+          {:ok, body, conn}
+        end
+      end
+
+  which could then be set as:
+
+      plug Plug.Parsers,
+        parsers: [:urlencoded, :json],
+        pass: ["text/*"],
+        body_reader: {CacheBodyReader, :read_body, []},
+        json_decoder: Jason
+
   """
 
   alias Plug.Conn
@@ -225,18 +255,11 @@ defmodule Plug.Parsers do
     %{req_headers: req_headers} = conn
     conn = Conn.fetch_query_params(conn, length: query_string_length)
 
-    case List.keyfind(req_headers, "content-type", 0) do
-      {"content-type", ct} ->
-        case Conn.Utils.content_type(ct) do
-          {:ok, type, subtype, params} ->
-            reduce(conn, parsers, type, subtype, params, pass, query_string_length)
-
-          :error ->
-            merge_params(conn, %{}, query_string_length)
-        end
-
-      nil ->
-        merge_params(conn, %{}, query_string_length)
+    with {"content-type", ct} <- List.keyfind(req_headers, "content-type", 0),
+         {:ok, type, subtype, params} <- Conn.Utils.content_type(ct) do
+      reduce(conn, parsers, type, subtype, params, pass, query_string_length)
+    else
+      _ -> merge_params(conn, %{}, query_string_length)
     end
   end
 

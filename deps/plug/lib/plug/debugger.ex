@@ -38,6 +38,9 @@ defmodule Plug.Debugger do
     * `:otp_app` - the OTP application that is using Plug. This option is used
       to filter stacktraces that belong only to the given application.
     * `:style` - custom styles (see below)
+    * `:banner` - the optional MFA (`{module, function, args}`) which receives
+      exception details and returns banner contents to appear at the top of
+      the page. May be any string, including markup.
 
   ## Custom styles
 
@@ -54,6 +57,23 @@ defmodule Plug.Debugger do
 
   The `:logo` is preferred to be a base64-encoded data URI so not to make any
   external requests, though external URLs (eg, `https://...`) are supported.
+
+  ## Custom Banners
+
+  You may pass an MFA (`{module, function, args}`) to be invoked when an
+  error is rendered which provides a custom banner at the top of the
+  debugger page. The function receives the following arguments, with the
+  passed `args` concentated at the end:
+
+      [conn, status, kind, reason, stacktrace]
+
+  For example, the following `:banner` option:
+
+      use Plug.Debugger, banner: {MyModule, :debug_banner, []}
+
+  would invoke the function:
+
+      MyModule.debug_banner(conn, status, kind, reason, stacktrace)
 
   ## Links to the text editor
 
@@ -100,25 +120,20 @@ defmodule Plug.Debugger do
       def call(conn, opts) do
         try do
           super(conn, opts)
+        rescue
+          e in Plug.Conn.WrapperError ->
+            %{conn: conn, kind: kind, reason: reason, stack: stack} = e
+            Plug.Debugger.__catch__(conn, kind, reason, stack, @plug_debugger)
         catch
           kind, reason ->
-            Plug.Debugger.__catch__(conn, kind, reason, @plug_debugger)
+            Plug.Debugger.__catch__(conn, kind, reason, System.stacktrace(), @plug_debugger)
         end
       end
     end
   end
 
   @doc false
-  def __catch__(_conn, :error, %Plug.Conn.WrapperError{} = wrapper, opts) do
-    %{conn: conn, kind: kind, reason: reason, stack: stack} = wrapper
-    __catch__(conn, kind, reason, stack, opts)
-  end
-
-  def __catch__(conn, kind, reason, opts) do
-    __catch__(conn, kind, reason, System.stacktrace(), opts)
-  end
-
-  defp __catch__(conn, kind, reason, stack, opts) do
+  def __catch__(conn, kind, reason, stack, opts) do
     reason = Exception.normalize(kind, reason, stack)
     status = status(kind, reason)
 
@@ -158,6 +173,7 @@ defmodule Plug.Debugger do
     params = maybe_fetch_query_params(conn)
     {title, message} = info(kind, reason)
     style = Enum.into(opts[:style] || [], @default_style)
+    banner = banner(conn, status, kind, reason, stack, opts)
 
     if accepts_html?(get_req_header(conn, "accept")) do
       conn = put_resp_content_type(conn, "text/html")
@@ -169,7 +185,8 @@ defmodule Plug.Debugger do
         message: message,
         session: session,
         params: params,
-        style: style
+        style: style,
+        banner: banner
       ]
 
       send_resp(conn, status, template_html(assigns))
@@ -295,14 +312,39 @@ defmodule Plug.Debugger do
   end
 
   defp get_doc(module, fun, arity, app) do
-    with docs when is_list(docs) <- Code.get_docs(module, :docs),
-         true <- List.keymember?(docs, {fun, arity}, 0),
+    with true <- has_docs?(module, fun, arity),
          {:ok, vsn} <- :application.get_key(app, :vsn) do
       vsn = vsn |> List.to_string() |> String.split("-") |> hd()
       fun = fun |> Atom.to_string() |> URI.encode()
       "https://hexdocs.pm/#{app}/#{vsn}/#{inspect(module)}.html##{fun}/#{arity}"
     else
       _ -> nil
+    end
+  end
+
+  # TODO: Remove exported check once we depend on Elixir v1.7+
+  if Code.ensure_loaded?(Code) and function_exported?(Code, :fetch_docs, 1) do
+    def has_docs?(module, name, arity) do
+      case Code.fetch_docs(module) do
+        {:docs_v1, _, _, _, module_doc, _, docs} when module_doc != :hidden ->
+          Enum.any?(docs, has_doc_matcher?(name, arity))
+
+        _ ->
+          false
+      end
+    end
+
+    defp has_doc_matcher?(name, arity) do
+      &match?(
+        {{kind, ^name, ^arity}, _, _, doc, _}
+        when kind in [:function, :macro] and doc != :hidden,
+        &1
+      )
+    end
+  else
+    def has_docs?(module, fun, arity) do
+      docs = Code.get_docs(module, :docs)
+      not is_nil(docs) and List.keymember?(docs, {fun, arity}, 0)
     end
   end
 
@@ -379,14 +421,26 @@ defmodule Plug.Debugger do
     |> elem(0)
   end
 
+  defp banner(conn, status, kind, reason, stack, opts) do
+    case Keyword.fetch(opts, :banner) do
+      {:ok, {mod, func, args}} ->
+        apply(mod, func, [conn, status, kind, reason, stack] ++ args)
+
+      {:ok, other} ->
+        raise ArgumentError,
+              "expected :banner to be an MFA ({module, func, args}), got: #{inspect(other)}"
+
+      :error ->
+        nil
+    end
+  end
+
   ## Helpers
 
   defp method(%Plug.Conn{method: method}), do: method
 
   defp url(%Plug.Conn{scheme: scheme, host: host, port: port} = conn),
     do: "#{scheme}://#{host}:#{port}#{conn.request_path}"
-
-  defp peer(%Plug.Conn{peer: {host, port}}), do: "#{:inet_parse.ntoa(host)}:#{port}"
 
   defp h(string) do
     string |> to_string() |> Plug.HTML.html_escape()

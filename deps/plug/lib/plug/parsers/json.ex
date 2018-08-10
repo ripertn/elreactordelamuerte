@@ -24,23 +24,21 @@ defmodule Plug.Parsers.JSON do
   """
 
   @behaviour Plug.Parsers
-  import Plug.Conn
 
   def init(opts) do
     {decoder, opts} = Keyword.pop(opts, :json_decoder)
+    {body_reader, opts} = Keyword.pop(opts, :body_reader, {Plug.Conn, :read_body, []})
 
     unless decoder do
       raise ArgumentError, "JSON parser expects a :json_decoder option"
     end
 
-    {decoder, opts}
+    {body_reader, decoder, opts}
   end
 
-  def parse(conn, "application", subtype, _headers, {decoder, opts}) do
+  def parse(conn, "application", subtype, _headers, {{mod, fun, args}, decoder, opts}) do
     if subtype == "json" or String.ends_with?(subtype, "+json") do
-      conn
-      |> read_body(opts)
-      |> decode(decoder)
+      apply(mod, fun, [conn, opts | args]) |> decode(decoder)
     else
       {:next, conn}
     end
@@ -78,11 +76,11 @@ defmodule Plug.Parsers.JSON do
     raise Plug.BadRequestError
   end
 
-  defp apply_mfa_or_module(body, {module_name, function_name, extra_args}) do
-    apply(module_name, function_name, [body | extra_args])
+  defp apply_mfa_or_module(body, decoder) when is_atom(decoder) do
+    decoder.decode!(body)
   end
 
-  defp apply_mfa_or_module(body, decoder) do
-    decoder.decode!(body)
+  defp apply_mfa_or_module(body, {module_name, function_name, extra_args}) do
+    apply(module_name, function_name, [body | extra_args])
   end
 end

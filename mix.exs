@@ -1,4 +1,4 @@
-defmodule ElixirPlugTuto.MixProject do
+defmodule Elreactordelamuerte.MixProject do
   use Mix.Project
 
   def project do
@@ -15,7 +15,7 @@ defmodule ElixirPlugTuto.MixProject do
   def application do
     [
       extra_applications: [:logger, :plug, :cowboy, :poison],
-      mod: {ElixirPlugTuto, []},
+      mod: {Elreactordelamuerte, []},
       env: [cowboy_port: 7000],
     ]
   end

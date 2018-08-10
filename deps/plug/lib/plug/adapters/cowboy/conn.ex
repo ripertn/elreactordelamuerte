@@ -64,8 +64,27 @@ defmodule Plug.Adapters.Cowboy.Conn do
     :cowboy_req.body(req, opts)
   end
 
+  def inform(_req, _path, _headers) do
+    {:error, :not_supported}
+  end
+
   def push(_req, _path, _headers) do
     {:error, :not_supported}
+  end
+
+  def get_peer_data(req) do
+    {{ip, port}, _} = :cowboy_req.peer(req)
+
+    %{
+      address: ip,
+      port: port,
+      ssl_cert: nil
+    }
+  end
+
+  def get_http_protocol(req) do
+    {version, _} = :cowboy_req.version(req)
+    version
   end
 
   ## Helpers

@@ -3,7 +3,14 @@ defmodule Plug.Conn.Adapter do
   Specification of the connection adapter API implemented by webservers
   """
   alias Plug.Conn
-  @typep payload :: term
+
+  @type http_protocol :: :"HTTP/1" | :"HTTP/1.1" | :"HTTP/2" | atom
+  @type payload :: term
+  @type peer_data :: %{
+          address: :inet.ip_address(),
+          port: :inet.port_number(),
+          ssl_cert: binary | nil
+        }
 
   @doc """
   Sends the given status, headers and body as a response
@@ -85,4 +92,22 @@ defmodule Plug.Conn.Adapter do
   should be returned.
   """
   @callback push(payload, path :: String.t(), headers :: Keyword.t()) :: :ok | {:error, term}
+
+  @doc """
+  Send an informational response to the client.
+
+  If the adapter does not support inform, then `{:error, :not_supported}`
+  should be returned.
+  """
+  @callback inform(payload, Conn.status(), headers :: Keyword.t()) :: :ok | {:error, term}
+
+  @doc """
+  Returns peer information such as the address, port and ssl cert.
+  """
+  @callback get_peer_data(payload) :: peer_data()
+
+  @doc """
+  Returns the HTTP protocol and its version.
+  """
+  @callback get_http_protocol(payload) :: http_protocol
 end
