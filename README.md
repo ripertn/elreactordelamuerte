@@ -1,16 +1,16 @@
-# ElixirPlugTuto
+# Elreactordelamuerte
 
 **TODO: Add description**
 
 ## Installation
 
 If [available in Hex](https://hex.pm/docs/publish), the package can be installed
-by adding `elixir_plug_tuto` to your list of dependencies in `mix.exs`:
+by adding `elreactordelamuerte` to your list of dependencies in `mix.exs`:
 
 ```elixir
 def deps do
   [
-    {:elixir_plug_tuto, "~> 0.1.0"}
+    {:elreactordelamuerte, "~> 0.1.0"}
   ]
 end
 ```
